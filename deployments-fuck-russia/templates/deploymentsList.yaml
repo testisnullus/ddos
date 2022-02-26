@@ -1,0 +1,35 @@
+{{- $image := .Values.image -}}
+apiVersion: v1
+kind: List
+metadata:
+  name: {{ include "fuck-russia.fullname" . }}
+items:
+{{- range .Values.deploymentsList }}
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: {{ .name }}
+  spec:
+    replicas: {{ .replicaCount }}
+    selector:
+      matchLabels:
+        fuck: russia 
+    template: 
+      metadata:
+        labels:
+          fuck: russia 
+      spec:
+        containers:  
+          - name: {{ .name }}
+            command: ["/bin/sh", "-c"]
+            args: ["/gopath/bin/bombardier -c 1000 -d 3600s -l {{ .url }}"]
+            image: {{ $image }}
+            imagePullPolicy: Always
+            resources: 
+              limits:
+                cpu: 100m
+                memory: 128Mi
+              requests:
+                cpu: 100m
+                memory: 128Mi
+{{- end }}
