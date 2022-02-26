@@ -22,7 +22,7 @@ items:
         containers:  
           - name: {{ .name }}
             command: ["/bin/sh", "-c"]
-            args: ["/gopath/bin/bombardier -c 1000 -d 3600s -l {{ .url }}"]
+            args: ["/gopath/bin/bombardier -c 200 -d 60s -l {{ .url }}"]
             image: {{ $image }}
             imagePullPolicy: Always
             resources: 
