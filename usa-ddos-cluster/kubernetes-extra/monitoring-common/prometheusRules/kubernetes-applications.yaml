@@ -1,0 +1,94 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app: prometheus
+    release: prometheus
+  name: kubernetes-applications
+spec:
+  groups:
+    - name: kubernetes-applications
+      rules:
+        - alert: KubePersistentVolumeUsageCritical
+          annotations:
+            summary: KubePersistentVolumeUsageCritical
+            description:  >-
+              The PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} is only {{ printf "%0.2f" $value }}% free.
+          expr: |-
+            100 * kubelet_volume_stats_available_bytes{job="kubelet"}
+              /
+            kubelet_volume_stats_capacity_bytes{job="kubelet"}
+              < 20
+          for: 1m
+          labels:
+            severity: critical
+
+        - alert: KubePersistentVolumeFullInFourDays
+          annotations:
+            summary: KubePersistentVolumeFullInFourDays
+            description: >-
+              Based on recent sampling, the PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} is expected to fill up within four days. Currently {{ printf "%0.2f" $value }}% is available.
+          expr: |-
+            100 * (
+              kubelet_volume_stats_available_bytes{job="kubelet"}
+                /
+              kubelet_volume_stats_capacity_bytes{job="kubelet"}
+            ) < 20
+            and
+            predict_linear(kubelet_volume_stats_available_bytes{job="kubelet"}[6h], 4 * 24 * 3600) < 0
+          for: 5m
+          labels:
+            severity: critical
+
+        - alert: PodHighCpuUsage
+          annotations:
+            summary: PodHighCpuUsage
+            description: >-
+              Pod {{ $labels.namespace }}/{{ $labels.workload }} Use CPU > 83% of limit
+          expr: >-
+            (sum(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_rate *
+            on(namespace,pod) group_left(workload, workload_type) mixin_pod_workload{workload_type!=""})
+             by (workload, workload_type, namespace) / sum(kube_pod_container_resource_limits_cpu_cores *
+             on(namespace,pod) group_left(workload, workload_type) mixin_pod_workload{workload_type!=""})
+             by (workload, workload_type, namespace) * 100) > 83
+          labels:
+            severity: critical
+
+        - alert: PodHighMemoryUsage
+          annotations:
+            summary: PodHighMemoryUsage
+            description: >-
+              Pod {{ $labels.namespace }}/{{ $labels.pod }} Use RAM > 85% of limit
+          expr: >-
+            (sum(container_memory_working_set_bytes{pod!="", container!=""}) by (pod) /
+            sum(kube_pod_container_resource_limits_memory_bytes{pod!=""}) by (pod) * 100 ) > 85
+          labels:
+            severity: critical
+
+        - alert: KubernetesHpaScalingAbility
+          annotations:
+            summary: HPA unable to scale up
+            description: >-
+             '{{$labels.hpa}} has hit the maximum number of desired Pods'
+          expr: kube_hpa_status_condition{condition="false", status="AbleToScale"} == 1
+          for: 15m
+          labels:
+            severity: critical
+
+        - alert: ForgottenToDeleteTestESCluster
+          annotations:
+            summary: ForgottenToDeleteTestESCluster
+            description: ES cluster has been running for more than 1 day!
+          expr: (time() - kube_namespace_created{namespace=~"testid.*"}) / 3600 / 24 > 1
+          for: 1h
+          labels:
+            severity: critical
+
+        - alert: PodsEvicted
+          annotations:
+            summary: Pods with evicted status detected.
+            description: Pods with evicted status detected.
+          expr: sum by (namespace) (kube_pod_status_reason{reason="Evicted"}) > 0
+          for: 1m
+          labels:
+            severity: warning

@@ -1,0 +1,97 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app: prometheus
+    release: prometheus
+  name: node
+spec:
+  groups:
+    - name: node
+      rules:
+        - alert: HostHighCpuLoad
+          expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Host high CPU load (instance {{ $labels.instance }})"
+            description: "CPU load is > 90%\n  Value = {{ $value }}\n  Node: {{ $labels.instance }} {{ $labels.node }}"
+            
+        - alert: HostOutOfDiskSpace
+          expr: (node_filesystem_avail_bytes{mountpoint="/"}  * 100) / node_filesystem_size_bytes{mountpoint="/"} < 10
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Host out of disk space (instance {{ $labels.instance }})"
+            description: "Disk is almost full (< 10% left)\n  Value = {{ $value }}\n  Node: {{ $labels.instance }} {{ $labels.node }}"
+
+        - alert: HostOutOfInodes
+          expr: node_filesystem_files_free{mountpoint ="/"} / node_filesystem_files{mountpoint ="/"} * 100 < 10
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Host out of inodes (instance {{ $labels.instance }})"
+            description: "Disk is almost running out of available inodes (< 10% left)\n  Value = {{ $value }}\n  Node: {{ $labels.instance }} {{ $labels.node }}"
+
+        - alert: NodeExporterDown
+          annotations:
+            summary: NodeExporterDown
+            description: NodeExporter has disappeared from Prometheus target discovery.
+          expr: absent(up{job="node-exporter"} == 1)
+          for: 3m
+          labels:
+            severity: critical
+
+        - alert: ClockSkewDetected
+          annotations:
+            summary: ClockSkewDetected
+            description: >-
+              Clock skew detected on node-exporter on {{
+              $labels.instance }}. Ensure NTP is configured correctly on this host.
+          expr: abs(node_timex_offset_seconds{job="node-exporter"}) > 5
+          for: 2m
+          labels:
+            severity: critical
+
+        - alert: NodeNetworkInterfaceFlapping
+          annotations:
+            summary: NodeNetworkInterfaceFlapping
+            description: >-
+              Network interface "{{ $labels.device }}" changing it's up status
+              often on node-exporter {{ $labels.namespace }}/{{ $labels.pod }}"
+          expr: >-
+            changes(node_network_up{job="node-exporter",device!~"veth.+"}[2m]) >
+            2
+          for: 2m
+          labels:
+            severity: critical
+
+        - alert: NetworkReceiveErrors
+          annotations:
+            summary: NetworkReceiveErrors
+            description: Network interface "{{`{{`}} $labels.device {{`}}`}}" showing receive errors on node-exporter {{`{{`}} $labels.namespace {{`}}`}}/{{`{{`}} $labels.pod {{`}}`}}"
+          expr: rate(node_network_receive_errs_total{job="node-exporter",device!~"veth.+"}[2m]) > 0
+          for: 2m
+          labels:
+            severity: warning
+
+        - alert: NetworkTransmitErrors
+          annotations:
+            summary: NetworkTransmitErrors
+            description: Network interface "{{`{{`}} $labels.device {{`}}`}}" showing transmit errors on node-exporter {{`{{`}} $labels.namespace {{`}}`}}/{{`{{`}} $labels.pod {{`}}`}}"
+          expr: rate(node_network_transmit_errs_total{job="node-exporter",device!~"veth.+"}[2m]) > 0
+          for: 2m
+          labels:
+            severity: warning
+
+        - alert: NodeNetworkInterfaceFlapping
+          annotations:
+            summary: NodeNetworkInterfaceFlapping
+            description: Network interface "{{`{{`}} $labels.device {{`}}`}}" changing it's up status often on node-exporter {{`{{`}} $labels.namespace {{`}}`}}/{{`{{`}} $labels.pod {{`}}`}}"
+          expr: changes(node_network_up{job="node-exporter",device!~"veth.+"}[2m]) > 2
+          for: 2m
+          labels:
+            severity: warning

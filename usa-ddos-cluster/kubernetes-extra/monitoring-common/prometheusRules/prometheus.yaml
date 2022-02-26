@@ -1,0 +1,154 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app: prometheus
+    release: prometheus
+  name: prometheus-alerts
+spec:
+  groups:
+    - name: prometheus-alerts
+      rules:
+        - alert: AlertmanagerConfigInconsistent
+          annotations:
+            summary: AlertmanagerConfigInconsistent
+            description: >-
+              The configuration of the instances of the Alertmanager cluster
+              `{{$labels.service}}` are out of sync.
+          expr: >-
+            count_values("config_hash",
+            alertmanager_config_hash{job="prometheus-operator-alertmanager",namespace="infra-tools"})
+            BY (service) / ON(service) GROUP_LEFT()
+            label_replace(max(prometheus_operator_spec_replicas{job="prometheus-operator-operator",namespace="infra-tools",controller="alertmanager"})
+            by (name, job, namespace, controller), "service", "$1", "name",
+            "(.*)") != 1
+          for: 5m
+          labels:
+            severity: critical
+
+        - alert: AlertmanagerFailedReload
+          annotations:
+            summary: AlertmanagerFailedReload
+            description: >-
+              Reloading Alertmanager's configuration has failed for {{
+              $labels.namespace }}/{{ $labels.pod}}.
+          expr: >-
+            alertmanager_config_last_reload_successful{job="prometheus-operator-alertmanager",namespace="infra-tools"}
+            == 0
+          for: 10m
+          labels:
+            severity: warning
+
+        - alert: PrometheusBadConfig
+          annotations:
+            description: >-
+              Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to
+              reload its configuration.
+            summary: Failed Prometheus configuration reload.
+          expr: >-
+            # Without max_over_time, failed scrapes could create false
+            negatives, see
+
+            #
+            https://www.robustperception.io/alerting-on-gauges-in-prometheus-2-0
+            for details.
+
+            max_over_time(prometheus_config_last_reload_successful{job="prometheus-operator-prometheus",namespace="infra-tools"}[5m])
+            == 0
+          for: 10m
+          labels:
+            severity: critical
+
+        - alert: PrometheusErrorSendingAlertsToAnyAlertmanager
+          annotations:
+            description: >-
+              {{ printf "%.1f" $value }}% minimum errors while sending alerts
+              from Prometheus {{$labels.namespace}}/{{$labels.pod}} to any
+              Alertmanager.
+            summary: >-
+              Prometheus encounters more than 3% errors sending alerts to any
+              Alertmanager.
+          expr: |-
+            min without(alertmanager) (
+              rate(prometheus_notifications_errors_total{job="prometheus-operator-prometheus",namespace="infra-tools"}[5m])
+            /
+              rate(prometheus_notifications_sent_total{job="prometheus-operator-prometheus",namespace="infra-tools"}[5m])
+            )
+            * 100
+            > 1
+          for: 15m
+          labels:
+            severity: critical
+
+        - alert: PrometheusNotConnectedToAlertmanagers
+          annotations:
+            description: >-
+              Prometheus {{$labels.namespace}}/{{$labels.pod}} is not connected
+              to any Alertmanagers.
+            summary: Prometheus is not connected to any Alertmanagers.
+          expr: >-
+            # Without max_over_time, failed scrapes could create false
+            negatives, see
+
+            #
+            https://www.robustperception.io/alerting-on-gauges-in-prometheus-2-0
+            for details.
+
+            max_over_time(prometheus_notifications_alertmanagers_discovered{job="prometheus-operator-prometheus",namespace="infra-tools"}[5m])
+            < 1
+          for: 10m
+          labels:
+            severity: warning
+
+        - alert: PrometheusDuplicateTimestamps
+          annotations:
+            description: >-
+              Prometheus {{$labels.namespace}}/{{$labels.pod}} is dropping {{
+              printf "%.4g" $value  }} samples/s with different values but
+              duplicated timestamp.
+            summary: Prometheus is dropping samples with duplicate timestamps.
+          expr: >-
+            rate(prometheus_target_scrapes_sample_duplicate_timestamp_total{job="prometheus-operator-prometheus",namespace="infra-tools"}[5m])
+            > 0
+          for: 10m
+          labels:
+            severity: warning
+
+        - alert: PrometheusRuleFailures
+          annotations:
+            description: >-
+              Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to
+              evaluate {{ printf "%.0f" $value }} rules in the last 5m.
+            summary: Prometheus is failing rule evaluations.
+          expr: >-
+            increase(prometheus_rule_evaluation_failures_total{job="prometheus-operator-prometheus",namespace="infra-tools"}[5m])
+            > 0
+          for: 15m
+          labels:
+            severity: critical
+
+        - alert: PrometheusOperatorReconcileErrors
+          annotations:
+            summary: PrometheusOperatorReconcileErrors
+            description: >-
+              Errors while reconciling {{ $labels.controller }} in {{
+              $labels.namespace }} Namespace.
+          expr: >-
+            rate(prometheus_operator_reconcile_errors_total{job="prometheus-operator-operator",namespace="infra-tools"}[5m])
+            > 0.1
+          for: 10m
+          labels:
+            severity: warning
+
+        - alert: PrometheusOperatorNodeLookupErrors
+          annotations:
+            summary: PrometheusOperatorNodeLookupErrors
+            description: >-
+              Errors while reconciling Prometheus in {{ $labels.namespace }}
+              Namespace.
+          expr: >-
+            rate(prometheus_operator_node_address_lookup_errors_total{job="prometheus-operator-operator",namespace="infra-tools"}[5m])
+            > 0.1
+          for: 10m
+          labels:
+            severity: warning

@@ -1,0 +1,148 @@
+nameOverride: "prometheus"
+defaultRules:
+  create: true
+alertmanager:
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: [ 'job' ]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: 'null'
+      routes:
+        - match:
+            alertname: Watchdog
+          receiver: 'null'
+    receivers:
+      - name: 'null'
+    templates:
+      - '/etc/alertmanager/config/*.tmpl'
+  alertmanagerSpec:
+    image:
+      repository: quay.io/prometheus/alertmanager
+      tag: v0.22.2
+    replicas: 1
+    retention: 120h
+    resources:
+      limits:
+        cpu: "1"
+        memory: "512Mi"
+      requests:
+        cpu: "100m"
+        memory: "200Mi"
+grafana:
+  defaultDashboardsEnabled: true
+  repository: grafana/grafana
+  tag: 8.0.1
+  enabled: true
+  adminPassword: prom-operator
+  plugins:
+  - grafana-piechart-panel
+  - camptocamp-prometheus-alertmanager-datasource
+  grafana.ini:
+    auth.anonymous:
+      enabled: true
+      org_role: Viewer
+    paths:
+      data: /var/lib/grafana/data
+      logs: /var/log/grafana
+      plugins: /var/lib/grafana/plugins
+      provisioning: /etc/grafana/provisioning
+    analytics:
+      check_for_updates: false
+    log:
+      mode: console
+    grafana_net:
+      url: https://grafana.net
+    dashboards:
+      default_home_dashboard_path: /tmp/dashboards/kubernetes-main.json
+      path:
+      - /tmp/dashboards/nats-streaming-monitoring.json
+      - /tmp/dashboards/blackbox-dashboard.json
+  dashboardProviders:
+   dashboardproviders.yaml:
+     apiVersion: 1
+     providers:
+     - name: 'default'
+       orgId: 1
+       folder: ''
+       type: file
+       disableDeletion: false
+       editable: true
+       options:
+         path: /var/lib/grafana/dashboards/default
+  dashboards:
+    default:
+      cluster-networking:
+        gnetId: 12124
+        revision: 1
+        datasource: Prometheus
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+kubelet:
+  enabled: true
+  namespace: kube-system
+kubeApiServer:
+  enabled: true
+kubeControllerManager:
+  enabled: false
+coreDns:
+  enabled: true
+kubeDns:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeStateMetrics:
+  enabled: true
+nodeExporter:
+  enabled: true
+prometheusOperator:
+  enabled: true
+  tls:
+    enabled: false
+  manageCrds: false
+  configReloaderCpu: 500m
+  configReloaderMemory: 64Mi
+  admissionWebhooks:
+    failurePolicy: Fail
+    enabled: false
+    patch:
+      enabled: false
+  createCustomResource: true
+  kubeletService:
+    enabled: true
+    namespace: kube-system
+  resources:
+    limits:
+      cpu: "1"
+      memory: "1024Mi"
+    requests:
+      cpu: "100m"
+      memory: "512Mi"
+  image:
+    repository: quay.io/prometheus-operator/prometheus-operator
+    tag: v0.48.1
+prometheus:
+  enabled: true
+  prometheusSpec:
+    remoteWriteDashboards: false
+    disableCompaction: false
+    image:
+      repository: prom/prometheus
+      tag: v2.26.0
+    retention: 14d
+    resources:
+      limits:
+        cpu: "1"
+        memory: "2048Mi"
+      requests:
+        cpu: "500m"
+        memory: "1024Mi"
