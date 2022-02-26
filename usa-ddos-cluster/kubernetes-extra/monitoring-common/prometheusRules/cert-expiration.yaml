@@ -1,0 +1,43 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app: prometheus
+    release: prometheus
+  name: cert-expiration-alerts
+spec:
+  groups:
+    - name: cert-expiration-alerts
+      rules:
+        - alert: CertificateExpirationWarning
+          annotations:
+            description: >-
+              Certificate `{{ $labels.subject_CN }}` will expire in {{ $value }} days on `{{ $labels.nb_cluster }}`'.
+            summary: CertificateExpirationWarning
+          expr: >-
+            floor((x509_cert_not_after - time()) / 86400) < 31
+          for: 5m
+          labels:
+            severity: warning
+
+        - alert: CertificateExpirationCritical
+          annotations:
+            description: >-
+              Certificate `{{ $labels.subject_CN }}` will expire in {{ $value }} days on `{{ $labels.nb_cluster }}`'.
+            summary: CertificateExpirationCritical
+          expr: >-
+            floor((x509_cert_not_after - time()) / 86400) < 7
+          for: 5m
+          labels:
+            severity: critical
+
+        - alert: CertificateExpirationCriticalAlert
+          annotations:
+            description: >-
+              Certificate `{{ $labels.subject_CN }}` will expire in {{ $value }} days on `{{ $labels.nb_cluster }}`'.
+            summary: CertificateExpirationCriticalAlert
+          expr: >-
+            floor((x509_cert_not_after - time()) / 86400) < 1
+          for: 5m
+          labels:
+            severity: critical
