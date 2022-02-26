@@ -2,22 +2,22 @@ image: "danilamaster/bombardier"
 
 deploymentsList:
   - name: proverki
-    replicaCount: 1 
+    replicaCount: 2
     url: https://proverki.gov.ru
   - name: cloud-rkn
-    replicaCount: 1 
+    replicaCount: 2
     url: https://cloud.rkn.gov.ru
   - name: mail-rkn
-    replicaCount: 1 
+    replicaCount: 2
     url: https://mail.rkn.gov.ru/
   - name: stroi
-    replicaCount: 1 
+    replicaCount: 2
     url: https://stroi.gov.ru/
   - name: pwd-wto-economy
-    replicaCount: 1 
+    replicaCount: 2
     url: https://pwd.wto.economy.gov.ru/ 
   - name: mvd
-    replicaCount: 1 
+    replicaCount: 2
     url: https://mvd.gov.ru
 
 
